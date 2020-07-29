@@ -20,7 +20,7 @@ variable "project_id" {
 
 variable "region" {
   description = "The region to host the cluster in"
-  default     = "us-west1"
+  default     = "us-central1"
 }
 
 variable "network_project_id" {
@@ -34,20 +34,31 @@ variable "network" {
 
 variable "subnetwork" {
   description = "The subnetwork to host the cluster in"
-  default     = "sb-d-shared-private-us-west1"
+  default     = "sb-d-shared-private-us-central1"
 }
 
 variable "ip_range_pods" {
   description = "The secondary ip range to use for pods"
-  default     = "rn-d-shared-private-us-west1-gke-pod"
+  default     = "rn-d-shared-private-us-central1-gke-pod"
 }
 
 variable "ip_range_services" {
   description = "The secondary ip range to use for services"
-  default     = "rn-d-shared-private-us-west1-gke-svc"
+  default     = "rn-d-shared-private-us-central1-gke-svc"
+}
+
+variable "master_ipv4_cidr_block" {
+  description = "IP range to use for GKE masters."
+  type        = string
+  default     = "172.16.0.0/28"
 }
 
 variable "bastion_member" {
   type        = string
   description = "User, group, SA who need access to the bastion host"
+}
+
+variable "terraform_service_account" {
+  description = "Service account email of the account to impersonate to run Terraform"
+  type        = string
 }

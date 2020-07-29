@@ -1,0 +1,4 @@
+terraform_service_account = "org-terraform@<YOUR_SEED_PROJECT>.iam.gserviceaccount.com"
+project_id                = "prj-bu2-d-sample-private-XXXX"
+network_project_id        = "prj-d-shared-base-XXXX"
+bastion_member            = "user:user@example.com"

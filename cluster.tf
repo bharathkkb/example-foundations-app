@@ -136,9 +136,9 @@ module "gke-dev-9" {
   add_cluster_firewall_rules = true
   enable_private_endpoint    = true
   enable_private_nodes       = true
-  node_pools_tags = {
-    all = ["allow-lb"]
-  }
+  # node_pools_tags = {
+  #   all = ["allow-lb"]
+  # }
   master_authorized_networks = [{
     cidr_block   = "${module.bastion.ip_address}/32"
     display_name = "Bastion Host"

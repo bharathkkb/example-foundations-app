@@ -15,9 +15,11 @@
  */
 
 locals {
-  cluster_name = "test-cluster-svpc"
-  bastion_name = format("%s-bastion", local.cluster_name)
-  bastion_zone = format("%s-a", var.region)
+  cluster_name             = "test-cluster-svpc"
+  bastion_name             = format("%s-bastion", local.cluster_name)
+  bastion_zone             = format("%s-a", var.region)
+  cluster_secondary_ranges = [for secondary in data.google_compute_subnetwork.subnetwork.secondary_ip_range : secondary.ip_cidr_range]
+  cluster_ip_ranges        = concat([var.master_ipv4_cidr_block, data.google_compute_subnetwork.subnetwork.ip_cidr_range], local.cluster_secondary_ranges)
 }
 
 # bastion host
@@ -49,7 +51,7 @@ module "bastion" {
   startup_script = data.template_file.startup_script.rendered
   members        = [var.bastion_member]
   shielded_vm    = "false"
-  tags           = ["egress-internet"]
+  tags           = ["allow-iap-ssh", "egress-internet"]
 }
 
 # fw for bastion packages
@@ -67,7 +69,7 @@ resource "google_compute_firewall" "bastion-fw" {
   target_service_accounts = [module.bastion.service_account]
 }
 
-# fw for svc lb
+# FW rule to allow network load balancer for hipster shop
 resource "google_compute_firewall" "lb-fw" {
   name          = "lb-fw"
   network       = var.network
@@ -80,6 +82,33 @@ resource "google_compute_firewall" "lb-fw" {
     ports    = ["80", "443"]
   }
 
+  enable_logging = true
+
+  target_service_accounts = [google_service_account.node-sa.email]
+}
+
+# Egress between nodes in cluster
+# TODO: reduce the ranges here after testing
+resource "google_compute_firewall" "intracluster-fw" {
+  name      = "intracluster-egress"
+  network   = var.network
+  project   = var.network_project_id
+  direction = "EGRESS"
+
+  destination_ranges = local.cluster_ip_ranges
+
+  allow {
+    protocol = "tcp"
+    ports    = ["1-65535"]
+  }
+  allow {
+    protocol = "udp"
+    ports    = ["1-65535"]
+  }
+
+  enable_logging = true
+
+  target_service_accounts = [google_service_account.node-sa.email]
 }
 
 # node sa
@@ -87,14 +116,6 @@ resource "google_service_account" "node-sa" {
   project      = var.project_id
   account_id   = "node-sa"
   display_name = "node-sa"
-}
-
-resource "google_compute_subnetwork_iam_member" "subnet" {
-  subnetwork = var.subnetwork
-  project    = var.network_project_id
-  role       = "roles/compute.networkUser"
-  member     = "serviceAccount:${google_service_account.node-sa.email}"
-  region     = var.region
 }
 
 # gke
@@ -109,15 +130,12 @@ module "gke-dev-9" {
   subnetwork                 = var.subnetwork
   ip_range_pods              = var.ip_range_pods
   ip_range_services          = var.ip_range_services
-  master_ipv4_cidr_block     = "172.16.0.0/28"
+  master_ipv4_cidr_block     = var.master_ipv4_cidr_block
   create_service_account     = false
-  service_account            = can(google_compute_subnetwork_iam_member.subnet.etag) ? google_service_account.node-sa.email : ""
+  service_account            = google_service_account.node-sa.email
   add_cluster_firewall_rules = true
   enable_private_endpoint    = true
   enable_private_nodes       = true
-  node_pools_tags = {
-    all = ["allow-lb"]
-  }
   master_authorized_networks = [{
     cidr_block   = "${module.bastion.ip_address}/32"
     display_name = "Bastion Host"
